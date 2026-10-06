@@ -1,0 +1,986 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>CT Cricket Multiplayer</title>
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<style>
+*{box-sizing:border-box}
+body{
+  margin:0;background:#07111f;color:#fff;font-family:Arial,Helvetica,sans-serif;
+  min-height:100vh;
+}
+.wrap{max-width:1050px;margin:auto;padding:16px}
+h1{margin:4px 0 8px;font-size:30px}
+h2{margin:0 0 12px;font-size:22px}
+h3{margin:10px 0;font-size:18px}
+.sub{color:#9fb3ca;margin-bottom:16px}
+.card{
+  background:#101d30;border:1px solid #243b59;border-radius:16px;
+  padding:16px;margin:12px 0;box-shadow:0 10px 30px rgba(0,0,0,.22)
+}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+button,input,select{
+  font:inherit;border-radius:12px;border:1px solid #355579;
+  padding:12px 14px;background:#0a1627;color:#fff;
+}
+button{
+  border:0;background:#168cff;font-weight:800;cursor:pointer;
+  min-height:46px;
+}
+button:hover{filter:brightness(1.08)}
+button:disabled{opacity:.45;cursor:not-allowed}
+button.secondary{background:#263b55}
+button.green{background:#16a56a}
+button.orange{background:#f08a24}
+button.red{background:#d9485f}
+input{width:100%}
+.code{
+  font-size:32px;font-weight:900;letter-spacing:7px;text-align:center;
+  background:#07111f;border:1px dashed #35a7ff;padding:14px;border-radius:14px
+}
+.big{font-size:28px;font-weight:900}
+.center{text-align:center}
+.status{
+  padding:11px 13px;border-radius:12px;background:#07111f;color:#bfe3ff;
+  border:1px solid #234b6d;margin-top:10px
+}
+.ok{color:#61e6a0}.warn{color:#ffd166}.bad{color:#ff7b91}
+.hidden{display:none!important}
+.pill{
+  display:inline-block;padding:6px 10px;border-radius:999px;
+  background:#20334b;color:#cde6ff;margin:3px;font-size:13px
+}
+.score{
+  display:grid;grid-template-columns:repeat(4,1fr);gap:8px;text-align:center
+}
+.score>div{background:#07111f;border-radius:12px;padding:12px}
+.score b{display:block;font-size:25px;margin-top:3px}
+.delivery,.shot{
+  padding:12px;border-radius:12px;background:#13263e;border:1px solid #284866;
+  cursor:pointer;text-align:left
+}
+.delivery:hover,.shot:hover{border-color:#31a6ff}
+.delivery.selected,.shot.selected{outline:3px solid #168cff;background:#163a5e}
+.sectionTitle{margin-top:14px;color:#8ecbff;font-weight:900}
+.log{
+  max-height:190px;overflow:auto;background:#07111f;border-radius:12px;
+  padding:10px;font-size:14px;line-height:1.55
+}
+.small{font-size:13px;color:#9fb3ca}
+.hr{height:1px;background:#223a55;margin:15px 0}
+.choice{
+  min-height:70px;font-size:19px;background:#17304c;border:1px solid #315777
+}
+.tossCoin{
+  width:100px;height:100px;border-radius:50%;margin:12px auto;
+  display:flex;align-items:center;justify-content:center;
+  background:linear-gradient(145deg,#ffd166,#d49a17);color:#332300;
+  font-size:18px;font-weight:900;border:5px solid #fff
+}
+.notice{
+  background:#172c43;border-left:4px solid #168cff;padding:12px;border-radius:8px
+}
+@media(max-width:650px){
+  .wrap{padding:10px}
+  h1{font-size:25px}
+  .grid,.grid3{grid-template-columns:1fr}
+  .score{grid-template-columns:repeat(2,1fr)}
+  .code{font-size:27px}
+  button{width:100%}
+  .row{display:grid;grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>🏏 CT CRICKET — MULTIPLAYER</h1>
+  <div class="sub">Room-code multiplayer • overs → toss → bat/bowl → match</div>
+
+  <section id="lobby" class="card">
+    <h2>1. Create or Join Match</h2>
+    <div class="grid">
+      <div>
+        <button id="createBtn">CREATE MATCH</button>
+        <div class="small" style="margin-top:8px">You become the host.</div>
+      </div>
+      <div>
+        <input id="roomInput" maxlength="6" inputmode="numeric" placeholder="Enter 6-digit room code">
+        <button id="joinBtn" class="green" style="margin-top:8px">JOIN MATCH</button>
+      </div>
+    </div>
+
+    <div id="hostBox" class="hidden card" style="margin-bottom:0">
+      <div class="small">Your room code</div>
+      <div id="roomCode" class="code">------</div>
+      <div class="row" style="margin-top:10px">
+        <button id="copyCodeBtn" class="secondary">📋 COPY CODE</button>
+        <button id="copyInviteBtn" class="secondary">🔗 COPY INVITE LINK</button>
+        <button id="shareBtn" class="secondary">📤 SHARE GAME</button>
+      </div>
+      <div class="small" id="inviteText" style="margin-top:8px"></div>
+    </div>
+
+    <div id="joinBox" class="hidden card" style="margin-bottom:0">
+      <div class="notice">You joined as the second player. Wait for the host to start the match setup.</div>
+    </div>
+
+    <div id="connectionStatus" class="status">Not connected.</div>
+  </section>
+
+  <section id="setup" class="card hidden">
+    <h2>2. Choose Match Overs</h2>
+    <div id="setupTurn" class="notice">Waiting...</div>
+    <div id="oversButtons" class="grid">
+      <button class="oversBtn choice" data-overs="2">2 OVERS</button>
+      <button class="oversBtn choice" data-overs="5">5 OVERS</button>
+      <button class="oversBtn choice" data-overs="10">10 OVERS</button>
+      <button class="oversBtn choice" data-overs="20">20 OVERS</button>
+    </div>
+    <div id="selectedOvers" class="center big" style="margin-top:12px">No overs selected</div>
+  </section>
+
+  <section id="toss" class="card hidden">
+    <h2>3. TOSS</h2>
+    <div id="tossInfo" class="notice">Waiting for toss...</div>
+    <div id="coin" class="tossCoin hidden">?</div>
+    <div id="tossChooser" class="hidden">
+      <h3 class="center">Choose Heads or Tails</h3>
+      <div class="grid">
+        <button id="headsBtn" class="choice">🪙 HEADS</button>
+        <button id="tailsBtn" class="choice">🪙 TAILS</button>
+      </div>
+      <div class="small center" style="margin-top:8px">Exactly 50% Heads / 50% Tails.</div>
+    </div>
+    <div id="tossResult" class="center big hidden"></div>
+  </section>
+
+  <section id="decision" class="card hidden">
+    <h2>4. TOSS WINNER CHOOSES</h2>
+    <div id="decisionInfo" class="notice">Waiting...</div>
+    <div class="grid" style="margin-top:12px">
+      <button id="batBtn" class="choice">🏏 BAT FIRST</button>
+      <button id="bowlBtn" class="choice">🎯 BOWL FIRST</button>
+    </div>
+  </section>
+
+  <section id="bowlingSetup" class="card hidden">
+    <h2>5. BOWLING STYLE</h2>
+    <div id="bowlingInfo" class="notice">Only the player bowling first chooses the style.</div>
+    <div class="grid">
+      <button id="fastBtn" class="choice">⚡ FAST BOWLER</button>
+      <button id="spinBtn" class="choice">🌀 SPIN BOWLER</button>
+    </div>
+  </section>
+
+  <section id="game" class="hidden">
+    <section class="card">
+      <div class="score">
+        <div>INNINGS<b id="inningsNo">1</b></div>
+        <div>SCORE<b id="scoreText">0/0</b></div>
+        <div>OVERS<b id="overText">0.0</b></div>
+        <div>TARGET<b id="targetText">—</b></div>
+      </div>
+      <div id="roleText" class="center" style="margin-top:12px"></div>
+      <div id="turnText" class="status"></div>
+    </section>
+
+    <section id="bowlingPanel" class="card hidden">
+      <h2>🎯 Choose Delivery</h2>
+      <div id="deliveryGroups"></div>
+      <button id="sendDelivery" style="margin-top:12px">CONFIRM DELIVERY</button>
+      <div id="deliveryChosen" class="small"></div>
+    </section>
+
+    <section id="battingPanel" class="card hidden">
+      <h2>🏏 Choose Shot</h2>
+      <div id="shotGroups"></div>
+      <button id="sendShot" style="margin-top:12px">CONFIRM SHOT</button>
+      <div id="shotChosen" class="small"></div>
+    </section>
+
+    <section class="card">
+      <h3>Match Events</h3>
+      <div id="eventLog" class="log"></div>
+    </section>
+  </section>
+
+  <section id="end" class="card hidden center">
+    <h2>🏆 MATCH FINISHED</h2>
+    <div id="finalResult" class="big"></div>
+    <button id="newMatchBtn" style="margin-top:15px">BACK TO LOBBY</button>
+  </section>
+</div>
+
+<script>
+(() => {
+  "use strict";
+
+  const $ = id => document.getElementById(id);
+  const params = new URLSearchParams(location.search);
+  const invitedRoom = (params.get("room") || "").replace(/\D/g,"").slice(0,6);
+
+  let peer = null;
+  let conn = null;
+  let isHost = false;
+  let roomId = "";
+  let myPlayer = 0;
+  let game = null;
+  let selectedDelivery = "";
+  let selectedShot = "";
+  let selectedOvers = null;
+
+  const DELIVERY = {
+    fast: {
+      "BOUNCER": [
+        "Inswing bouncer","Outswing bouncer","Quick bouncer",
+        "Slow bouncer","Cross seam bouncer","Reverse swing bouncer"
+      ],
+      "GOOD LENGTH": [
+        "Inswing good","Outswing good","Quick good",
+        "Slow good","Cross seam good","Reverse swing good"
+      ],
+      "FULL": [
+        "Inswing full","Outswing full","Quick full",
+        "Slow full","Cross seam full","Reverse swing full"
+      ],
+      "YORKER": [
+        "Inswing yorker","Outswing yorker","Quick yorker",
+        "Slow yorker","Cross seam yorker","Reverse swing yorker"
+      ],
+      "FULL TOSS": [
+        "Inswing full toss","Outswing full toss","Quick full toss",
+        "Slow full toss","Cross seam full toss","Reverse swing full toss"
+      ]
+    },
+    spin: {
+      "LEG SPIN": [
+        "Leg break","Slider","Googly","Flipper","Drifter","Zooter"
+      ],
+      "OFF SPIN": [
+        "Off break","Top spin","Arm ball","Carrom ball","Doosra","Teesra","Mystery"
+      ]
+    }
+  };
+
+  const VALID = {
+    "Leg break":["stroke drive","stroke cut"],
+    "Slider":["stroke drive","stroke cut"],
+    "Googly":["stroke drive","stroke sweep"],
+    "Flipper":["stroke sweep","stroke drive","stroke flick"],
+    "Drifter":["stroke drive","stroke flick","loft"],
+    "Zooter":["stroke drive","stroke cut"],
+    "Off break":["stroke drive","stroke sweep"],
+    "Top spin":["stroke drive","stroke cut","loft pull"],
+    "Arm ball":["loft","stroke drive","stroke flick","loft pull"],
+    "Carrom ball":["stroke drive","stroke cut","stroke flick"],
+    "Doosra":["stroke drive","stroke sweep","stroke cut","loft"],
+    "Teesra":["stroke drive","loft switch hit","loft"],
+    "Inswing bouncer":["loft pull","loft hook"],
+    "Outswing bouncer":["loft pull","loft hook","loft upper cut"],
+    "Quick bouncer":["loft pull","loft hook","loft upper cut"],
+    "Slow bouncer":["loft pull","loft hook"],
+    "Cross seam bouncer":["loft pull","loft hook"],
+    "Reverse swing bouncer":["loft pull","loft hook"],
+    "Inswing good":["stroke drive","stroke flick","loft","loft flick"],
+    "Outswing good":["stroke drive","stroke cut","loft"],
+    "Quick good":["stroke drive","stroke cut","loft"],
+    "Slow good":["stroke drive","stroke cut","loft"],
+    "Cross seam good":["stroke drive","stroke cut","loft"],
+    "Reverse swing good":["stroke drive","stroke cut","stroke flick","loft"],
+    "Inswing full":["stroke drive","stroke flick","loft","loft flick"],
+    "Outswing full":["stroke drive","loft"],
+    "Quick full":["stroke drive","loft"],
+    "Slow full":["stroke drive","stroke sweep","loft","loft switch hit"],
+    "Cross seam full":["stroke drive","loft"],
+    "Reverse swing full":["stroke drive","loft"],
+    "Inswing yorker":["stroke drive","stroke flick"],
+    "Outswing yorker":["stroke cut"],
+    "Quick yorker":["stroke drive"],
+    "Slow yorker":["stroke drive"],
+    "Cross seam yorker":["stroke drive"],
+    "Reverse swing yorker":["stroke drive"],
+    "Inswing full toss":["stroke drive","stroke flick","loft","loft flick"],
+    "Outswing full toss":["stroke drive","stroke cut","loft"],
+    "Quick full toss":["stroke drive","loft"],
+    "Slow full toss":["stroke drive","loft","loft hook"],
+    "Cross seam full toss":["stroke drive","loft"],
+    "Reverse swing full toss":["stroke drive","loft"]
+  };
+
+  const SHOTS = [
+    "defence","push","stroke drive","stroke cut","stroke flick",
+    "stroke sweep","loft","loft pull","loft hook","loft upper cut",
+    "loft flick","loft switch hit"
+  ];
+
+  function setStatus(text, cls="") {
+    $("connectionStatus").innerHTML = text;
+    $("connectionStatus").className = "status " + cls;
+  }
+
+  function show(id) { $(id).classList.remove("hidden"); }
+  function hide(id) { $(id).classList.add("hidden"); }
+
+  function send(msg) {
+    if (conn && conn.open) conn.send(msg);
+  }
+
+  function copyText(text) {
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(text).then(() => setStatus("Copied successfully.","ok"))
+        .catch(() => fallbackCopy(text));
+    } else fallbackCopy(text);
+  }
+
+  function fallbackCopy(text) {
+    const ta = document.createElement("textarea");
+    ta.value = text; document.body.appendChild(ta); ta.select();
+    try { document.execCommand("copy"); setStatus("Copied successfully.","ok"); }
+    catch(e) { setStatus("Copy failed. Long-press the text to copy.","warn"); }
+    ta.remove();
+  }
+
+  function inviteURL() {
+    return location.href.split("#")[0].split("?")[0] + "?room=" + roomId;
+  }
+
+  function randomRoom() {
+    return String(Math.floor(100000 + Math.random()*900000));
+  }
+
+  function createHost() {
+    $("createBtn").disabled = true;
+    setStatus("Creating secure peer connection...");
+    roomId = randomRoom();
+    peer = new Peer("ct-" + roomId, {debug:0});
+
+    peer.on("open", id => {
+      isHost = true; myPlayer = 1;
+      $("roomCode").textContent = roomId;
+      $("inviteText").textContent = inviteURL();
+      show("hostBox");
+      show("setup");
+      $("setupTurn").textContent = "Waiting for your friend to join...";
+      setStatus("Match created. Share the room code or invite link.","ok");
+    });
+
+    peer.on("connection", c => {
+      if (conn && conn.open) { c.close(); return; }
+      conn = c;
+      setupConnection();
+    });
+
+    peer.on("error", err => {
+      console.error(err);
+      setStatus("Connection error: " + (err.type || err.message), "bad");
+      $("createBtn").disabled = false;
+    });
+  }
+
+  function joinMatch() {
+    const code = $("roomInput").value.replace(/\D/g,"").slice(0,6);
+    if (code.length !== 6) {
+      setStatus("Enter a valid 6-digit room code.","bad"); return;
+    }
+    $("joinBtn").disabled = true;
+    roomId = code;
+    setStatus("Connecting to host...");
+    peer = new Peer({debug:0});
+
+    peer.on("open", () => {
+      conn = peer.connect("ct-" + roomId, {reliable:true});
+      setupConnection();
+    });
+    peer.on("error", err => {
+      console.error(err);
+      setStatus("Could not connect: " + (err.type || err.message) + ". Check the room code.","bad");
+      $("joinBtn").disabled = false;
+    });
+  }
+
+  function setupConnection() {
+    if (!conn) return;
+
+    conn.on("open", () => {
+      if (!isHost) {
+        myPlayer = 2;
+        show("joinBox");
+        send({type:"hello", player:2});
+      } else {
+        send({type:"hello", player:1});
+      }
+      setStatus("Connected to both players.","ok");
+      if (isHost) {
+        $("setupTurn").textContent = "Friend connected. You (Host) choose the match overs.";
+      }
+    });
+
+    conn.on("data", handleMessage);
+    conn.on("close", () => {
+      setStatus("Friend disconnected.","bad");
+    });
+    conn.on("error", err => {
+      setStatus("Connection error.","bad");
+      console.error(err);
+    });
+  }
+
+  function handleMessage(msg) {
+    if (!msg || !msg.type) return;
+
+    if (msg.type === "hello") {
+      if (isHost) {
+        show("setup");
+        $("setupTurn").textContent = "Friend connected. You (Host) choose the match overs.";
+      }
+      return;
+    }
+
+    if (msg.type === "overs") {
+      selectedOvers = msg.overs;
+      if (isHost) return;
+      startTossSetup(msg.overs);
+      return;
+    }
+
+    if (msg.type === "tossChooser") {
+      if (isHost) return;
+      game.tossChooser = msg.player;
+      renderToss();
+      return;
+    }
+
+    if (msg.type === "tossChoice") {
+      if (!isHost) return;
+      resolveToss(msg.choice);
+      return;
+    }
+
+    if (msg.type === "tossResult") {
+      applyTossResult(msg);
+      return;
+    }
+
+    if (msg.type === "decision") {
+      if (!isHost) applyDecision(msg.choice, msg.winner);
+      return;
+    }
+
+    if (msg.type === "bowlingStyle") {
+      if (!isHost) {
+        game.bowlingStyle = msg.style;
+        startGame();
+      }
+      return;
+    }
+
+    if (msg.type === "action") {
+      if (!isHost) return;
+      if (msg.kind === "delivery") game.deliveryAction = msg.value;
+      if (msg.kind === "shot") game.shotAction = msg.value;
+      maybeResolveBall();
+      return;
+    }
+
+    if (msg.type === "state") {
+      if (isHost) return;
+      game = msg.game;
+      renderGame();
+      return;
+    }
+
+    if (msg.type === "final") {
+      if (!isHost) {
+        game = msg.game;
+        renderGame();
+        finishGame();
+      }
+      return;
+    }
+
+    if (msg.type === "restart") location.href = location.href.split("?")[0];
+  }
+
+  function chooseOvers(overs) {
+    if (!isHost || !conn || !conn.open) {
+      setStatus("Only the host chooses overs, after the friend joins.","warn"); return;
+    }
+    selectedOvers = overs;
+    game = {
+      overs,
+      maxBalls: overs*6,
+      innings:1,
+      score:[0,0],
+      wickets:[0,0],
+      balls:[0,0],
+      batPlayer:null,
+      bowlPlayer:null,
+      bowlingStyle:null,
+      tossWinner:null,
+      tossChoice:null,
+      tossResult:null,
+      tossChooser:null,
+      phase:"toss",
+      deliveryAction:"",
+      shotAction:"",
+      pending:false,
+      target:null,
+      events:[]
+    };
+    $("selectedOvers").textContent = overs + " overs selected";
+    send({type:"overs", overs});
+    startTossSetup(overs);
+  }
+
+  function startTossSetup(overs) {
+    selectedOvers = overs;
+    show("toss");
+    hide("setup");
+    $("tossInfo").textContent = isHost
+      ? "You are the toss caller. Choose Heads or Tails."
+      : "Host is preparing the toss...";
+    if (isHost) {
+      game.tossChooser = 1;
+      send({type:"tossChooser",player:1});
+      renderToss();
+    }
+  }
+
+  function renderToss() {
+    show("toss");
+    hide("setup");
+    if (!game) return;
+
+    if (game.tossChooser === myPlayer && !game.tossResult) {
+      show("tossChooser");
+      $("tossInfo").textContent = "You call the toss. Choose Heads or Tails.";
+    } else if (!game.tossResult) {
+      hide("tossChooser");
+      $("tossInfo").textContent = "Waiting for the toss caller to choose Heads or Tails...";
+    }
+  }
+
+  function chooseToss(choice) {
+    if (!game || game.tossChooser !== myPlayer || game.tossResult) return;
+    if (isHost) resolveToss(choice);
+    else send({type:"tossChoice",choice});
+    hide("tossChooser");
+    $("tossInfo").textContent = "Tossing...";
+    animateCoin();
+  }
+
+  function animateCoin() {
+    show("coin");
+    $("coin").textContent = "🪙";
+    let n=0;
+    const timer=setInterval(()=>{
+      $("coin").textContent = n%2 ? "HEADS" : "TAILS";
+      n++;
+      if(n>8) clearInterval(timer);
+    },100);
+  }
+
+  function resolveToss(choice) {
+    const result = Math.random() < 0.5 ? "Heads" : "Tails";
+    const winner = choice === result ? game.tossChooser : (game.tossChooser === 1 ? 2 : 1);
+    game.tossChoice = choice;
+    game.tossResult = result;
+    game.tossWinner = winner;
+    game.phase = "decision";
+
+    send({
+      type:"tossResult",
+      choice, result, winner,
+      chooser:game.tossChooser
+    });
+    applyTossResult({choice,result,winner,chooser:game.tossChooser});
+  }
+
+  function applyTossResult(msg) {
+    if (!game) {
+      game = {
+        overs:selectedOvers, maxBalls:selectedOvers*6,
+        innings:1,score:[0,0],wickets:[0,0],balls:[0,0],
+        batPlayer:null,bowlPlayer:null,bowlingStyle:null,
+        tossWinner:msg.winner,tossChoice:msg.choice,tossResult:msg.result,
+        tossChooser:msg.chooser,phase:"decision",deliveryAction:"",
+        shotAction:"",pending:false,target:null,events:[]
+      };
+    } else {
+      game.tossWinner=msg.winner;
+      game.tossChoice=msg.choice;
+      game.tossResult=msg.result;
+      game.tossChooser=msg.chooser;
+      game.phase="decision";
+    }
+
+    show("toss");
+    hide("tossChooser");
+    show("coin");
+    $("coin").textContent = msg.result.toUpperCase();
+    show("tossResult");
+    $("tossResult").textContent =
+      "Toss: " + msg.result + " • Player " + msg.winner + " wins the toss!";
+    $("tossInfo").textContent =
+      "Player " + msg.chooser + " called " + msg.choice + ".";
+
+    show("decision");
+    $("decisionInfo").textContent =
+      msg.winner === myPlayer
+        ? "🎉 You won the toss. Choose BAT FIRST or BOWL FIRST."
+        : "Waiting for the toss winner to choose Bat or Bowl...";
+    $("batBtn").disabled = msg.winner !== myPlayer;
+    $("bowlBtn").disabled = msg.winner !== myPlayer;
+  }
+
+  function chooseDecision(choice) {
+    if (!game || game.tossWinner !== myPlayer) return;
+    game.batPlayer = choice === "bat" ? myPlayer : (myPlayer === 1 ? 2 : 1);
+    game.bowlPlayer = choice === "bowl" ? myPlayer : (myPlayer === 1 ? 2 : 1);
+    game.phase = "bowlingStyle";
+
+    send({type:"decision",choice,winner:myPlayer});
+    applyDecision(choice,myPlayer);
+  }
+
+  function applyDecision(choice,winner) {
+    if (!game) return;
+    const bat = choice === "bat" ? winner : (winner===1?2:1);
+    const bowl = choice === "bowl" ? winner : (winner===1?2:1);
+    game.batPlayer=bat;
+    game.bowlPlayer=bowl;
+    game.phase="bowlingStyle";
+
+    show("bowlingSetup");
+    $("decisionInfo").textContent =
+      "Player " + winner + " chose to " + (choice==="bat" ? "BAT" : "BOWL") + " first.";
+    $("bowlingInfo").textContent =
+      game.bowlPlayer === myPlayer
+        ? "You bowl first. Choose FAST or SPIN."
+        : "Waiting for the other player to choose FAST or SPIN.";
+    $("fastBtn").disabled = game.bowlPlayer !== myPlayer;
+    $("spinBtn").disabled = game.bowlPlayer !== myPlayer;
+  }
+
+  function chooseBowlingStyle(style) {
+    if (!game || game.bowlPlayer !== myPlayer) return;
+    game.bowlingStyle=style;
+    game.phase="playing";
+    send({type:"bowlingStyle",style});
+    startGame();
+  }
+
+  function startGame() {
+    if (!game || !game.bowlingStyle) return;
+    hide("lobby"); hide("setup"); hide("toss"); hide("decision"); hide("bowlingSetup");
+    show("game");
+    game.phase="playing";
+    game.deliveryAction="";
+    game.shotAction="";
+    game.pending=false;
+    buildControls();
+    renderGame();
+    if (isHost) broadcastState();
+  }
+
+  function buildControls() {
+    const dg=$("deliveryGroups");
+    dg.innerHTML="";
+    const groups=DELIVERY[game.bowlingStyle];
+    Object.keys(groups).forEach(group=>{
+      const title=document.createElement("div");
+      title.className="sectionTitle"; title.textContent=group;
+      dg.appendChild(title);
+      const grid=document.createElement("div");
+      grid.className="grid3";
+      groups[group].forEach(item=>{
+        const b=document.createElement("button");
+        b.className="delivery";
+        b.textContent=item;
+        b.dataset.value=item;
+        b.onclick=()=>selectDelivery(item,b);
+        grid.appendChild(b);
+      });
+      dg.appendChild(grid);
+    });
+
+    const sg=$("shotGroups");
+    sg.innerHTML="";
+    const grid=document.createElement("div");
+    grid.className="grid3";
+    SHOTS.forEach(item=>{
+      const b=document.createElement("button");
+      b.className="shot";
+      b.textContent=item.toUpperCase();
+      b.dataset.value=item;
+      b.onclick=()=>selectShot(item,b);
+      grid.appendChild(b);
+    });
+    sg.appendChild(grid);
+  }
+
+  function selectDelivery(value,btn) {
+    if (!game || game.bowlPlayer !== myPlayer || game.pending) return;
+    selectedDelivery=value;
+    document.querySelectorAll(".delivery").forEach(x=>x.classList.remove("selected"));
+    btn.classList.add("selected");
+    $("deliveryChosen").textContent="Selected: "+value;
+  }
+
+  function selectShot(value,btn) {
+    if (!game || game.batPlayer !== myPlayer || game.pending) return;
+    selectedShot=value;
+    document.querySelectorAll(".shot").forEach(x=>x.classList.remove("selected"));
+    btn.classList.add("selected");
+    $("shotChosen").textContent="Selected: "+value;
+  }
+
+  function confirmDelivery() {
+    if (!selectedDelivery || !game || game.bowlPlayer !== myPlayer) return;
+    game.pending=true;
+    if (isHost) {
+      game.deliveryAction=selectedDelivery;
+      maybeResolveBall();
+    } else send({type:"action",kind:"delivery",value:selectedDelivery});
+    $("sendDelivery").disabled=true;
+    $("deliveryChosen").textContent="Delivery locked: "+selectedDelivery;
+    updateTurnText();
+  }
+
+  function confirmShot() {
+    if (!selectedShot || !game || game.batPlayer !== myPlayer) return;
+    game.pending=true;
+    if (isHost) {
+      game.shotAction=selectedShot;
+      maybeResolveBall();
+    } else send({type:"action",kind:"shot",value:selectedShot});
+    $("sendShot").disabled=true;
+    $("shotChosen").textContent="Shot locked: "+selectedShot;
+    updateTurnText();
+  }
+
+  function maybeResolveBall() {
+    if (!isHost || !game) return;
+    if (!game.deliveryAction || !game.shotAction) {
+      broadcastState();
+      return;
+    }
+    resolveBall();
+  }
+
+  function resolveBall() {
+    const delivery=game.deliveryAction;
+    const shot=game.shotAction;
+    const valid=(VALID[delivery] || []).includes(shot);
+    let outcome;
+
+    if (shot==="defence") {
+      outcome = Math.random()<0.10 ? {runs:0,wicket:true,text:"Defence beaten — WICKET!"} :
+        {runs:0,wicket:false,text:"Solid defence — DOT BALL"};
+    } else if (shot==="push") {
+      const r=Math.random();
+      outcome = r<0.65 ? {runs:1,wicket:false,text:"Push — 1 run"} :
+        r<0.85 ? {runs:2,wicket:false,text:"Push — 2 runs"} :
+        r<0.95 ? {runs:0,wicket:false,text:"Push — dot ball"} :
+        {runs:0,wicket:true,text:"Push miscued — WICKET!"};
+    } else if (valid) {
+      const r=Math.random();
+      outcome = r<0.18 ? {runs:6,wicket:false,text:shot+" — SIX! 🔥"} :
+        r<0.48 ? {runs:4,wicket:false,text:shot+" — FOUR! 🏏"} :
+        r<0.75 ? {runs:Math.random()<0.55?1:2,wicket:false,text:shot+" — runs"} :
+        {runs:0,wicket:false,text:shot+" — dot ball"};
+    } else {
+      outcome={runs:0,wicket:true,text:shot+" against "+delivery+" — WICKET!"};
+    }
+
+    const batting=game.batPlayer-1;
+    game.score[batting]+=outcome.runs;
+    if(outcome.wicket) game.wickets[batting]++;
+    game.balls[batting]++;
+    game.events.unshift(
+      "Ball " + game.balls[batting] + ": " + delivery + " + " + shot +
+      " → " + outcome.text
+    );
+
+    game.deliveryAction="";
+    game.shotAction="";
+    game.pending=false;
+
+    const inningsOver =
+      game.balls[batting] >= game.maxBalls ||
+      game.wickets[batting] >= 3 ||
+      (game.innings===2 && game.score[batting] >= game.target);
+
+    if (inningsOver) {
+      if (game.innings===1) {
+        game.target=game.score[batting]+1;
+        game.innings=2;
+        const oldBat=game.batPlayer;
+        game.batPlayer=game.bowlPlayer;
+        game.bowlPlayer=oldBat;
+        game.deliveryAction="";
+        game.shotAction="";
+        game.bowlingStyle=null;
+        game.balls=[game.balls[0],game.balls[1]];
+        game.phase="needSecondStyle";
+        game.events.unshift("🏁 Innings 1 finished. Target: "+game.target);
+        send({type:"state",game});
+        broadcastState();
+        setTimeout(()=>secondInningsSetup(),250);
+        return;
+      } else {
+        game.phase="finished";
+        broadcastState();
+        send({type:"final",game});
+        finishGame();
+        return;
+      }
+    }
+
+    broadcastState();
+    resetLocalSelections();
+  }
+
+  function secondInningsSetup() {
+    if (!game || game.phase!=="needSecondStyle") return;
+    if (game.bowlPlayer===1) {
+      game.bowlingStyle = game.bowlingStyle || null;
+    }
+    show("bowlingSetup");
+    $("bowlingInfo").textContent =
+      game.bowlPlayer===myPlayer
+        ? "Second innings: you bowl. Choose FAST or SPIN."
+        : "Second innings: waiting for the bowler to choose FAST or SPIN.";
+    $("fastBtn").disabled=game.bowlPlayer!==myPlayer;
+    $("spinBtn").disabled=game.bowlPlayer!==myPlayer;
+
+    if (isHost) broadcastState();
+  }
+
+  function resetLocalSelections() {
+    selectedDelivery="";
+    selectedShot="";
+    $("sendDelivery").disabled=false;
+    $("sendShot").disabled=false;
+    $("deliveryChosen").textContent="";
+    $("shotChosen").textContent="";
+    document.querySelectorAll(".delivery,.shot").forEach(x=>x.classList.remove("selected"));
+  }
+
+  function broadcastState() {
+    if (isHost && conn && conn.open) conn.send({type:"state",game});
+    renderGame();
+  }
+
+  function renderGame() {
+    if (!game) return;
+
+    if (game.phase==="playing") {
+      hide("bowlingSetup");
+      show("game");
+    }
+
+    $("inningsNo").textContent=game.innings;
+    const batting=game.batPlayer-1;
+    $("scoreText").textContent=game.score[batting]+"/"+game.wickets[batting];
+    $("overText").textContent=Math.floor(game.balls[batting]/6)+"."+(game.balls[batting]%6);
+    $("targetText").textContent=game.innings===2 ? game.target : "—";
+
+    const myRole = game.batPlayer===myPlayer ? "🏏 YOU ARE BATTING" :
+                   game.bowlPlayer===myPlayer ? "🎯 YOU ARE BOWLING" : "";
+    $("roleText").innerHTML = myRole + " • Player "+game.batPlayer+" batting • Player "+game.bowlPlayer+" bowling";
+
+    show("game");
+
+    if (game.batPlayer===myPlayer) {
+      show("battingPanel"); hide("bowlingPanel");
+    } else if (game.bowlPlayer===myPlayer) {
+      show("bowlingPanel"); hide("battingPanel");
+    } else {
+      hide("battingPanel"); hide("bowlingPanel");
+    }
+
+    if (game.phase==="needSecondStyle") {
+      hide("game");
+      show("bowlingSetup");
+      secondInningsSetup();
+      return;
+    }
+
+    updateTurnText();
+
+    $("eventLog").innerHTML = (game.events||[]).map(e=>"<div>• "+escapeHtml(e)+"</div>").join("");
+  }
+
+  function updateTurnText() {
+    if (!game) return;
+    if (game.phase==="playing") {
+      const both=!!game.deliveryAction && !!game.shotAction;
+      if (both) $("turnText").textContent="Resolving ball...";
+      else if (game.batPlayer===myPlayer) $("turnText").textContent="Choose your batting shot. The bowler is choosing a delivery.";
+      else $("turnText").textContent="Choose your delivery. The batter is choosing a shot.";
+    }
+  }
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
+  }
+
+  function finishGame() {
+    hide("game"); hide("bowlingSetup"); hide("decision"); hide("toss"); hide("setup");
+    show("end");
+
+    const s1=game.score[0], s2=game.score[1];
+    let result;
+    if (s1===s2) result="Match tied!";
+    else {
+      const winnerScore=Math.max(s1,s2);
+      const winner=s1>s2?1:2;
+      result="Player "+winner+" wins! Final scores: Player 1 "+s1+", Player 2 "+s2;
+    }
+    $("finalResult").textContent=result;
+  }
+
+  $("createBtn").onclick=createHost;
+  $("joinBtn").onclick=joinMatch;
+  $("roomInput").value=invitedRoom;
+  if (invitedRoom) setStatus("Invite detected. Entered room code: "+invitedRoom);
+
+  $("copyCodeBtn").onclick=()=>copyText(roomId);
+  $("copyInviteBtn").onclick=()=>copyText(inviteURL());
+  $("shareBtn").onclick=()=>{
+    const url=inviteURL();
+    if(navigator.share) navigator.share({title:"CT Cricket Multiplayer",text:"Join my cricket match!",url}).catch(()=>{});
+    else copyText(url);
+  };
+
+  document.querySelectorAll(".oversBtn").forEach(b=>{
+    b.onclick=()=>chooseOvers(Number(b.dataset.overs));
+  });
+
+  $("headsBtn").onclick=()=>chooseToss("Heads");
+  $("tailsBtn").onclick=()=>chooseToss("Tails");
+  $("batBtn").onclick=()=>chooseDecision("bat");
+  $("bowlBtn").onclick=()=>chooseDecision("bowl");
+  $("fastBtn").onclick=()=>chooseBowlingStyle("fast");
+  $("spinBtn").onclick=()=>chooseBowlingStyle("spin");
+  $("sendDelivery").onclick=confirmDelivery;
+  $("sendShot").onclick=confirmShot;
+
+  $("newMatchBtn").onclick=()=>{
+    if (isHost) send({type:"restart"});
+    location.href=location.href.split("?")[0];
+  };
+
+  // Enter key joins a room.
+  $("roomInput").addEventListener("keydown",e=>{
+    if(e.key==="Enter") joinMatch();
+  });
+})();
+</script>
+</body>
+</html>
